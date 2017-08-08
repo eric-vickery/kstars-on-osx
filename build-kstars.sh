@@ -295,6 +295,7 @@ function installBrewDependencies
     brewInstallIfNeeded python
     brewInstallIfNeeded libftdi
     brewInstallIfNeeded gpsd
+    brewInstallIfNeeded rtlsdr
     pip install pyfits
 
     brewInstallIfNeeded jamiesmith/astronomy/libnova
