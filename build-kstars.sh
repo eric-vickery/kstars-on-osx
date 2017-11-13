@@ -210,7 +210,7 @@ EOF
 			# Cleanup steps:
 			#     brew uninstall `brew list -1 | grep '^kf5-'`
 			#     rm -rf ~/Library/Caches/Homebrew/kf5-*
-			#     brew untap haraldf/kf5
+			#     brew untap KDE-mac/kde
 			#     ls /usr/local/Homebrew/Library/Taps
 			#     brew remove qt5
 
@@ -227,9 +227,9 @@ EOF
 			fi
 		fi
 
-		brew tap haraldf/kf5
+		brew tap KDE-mac/kde
 
-		cd $(brew --repo haraldf/homebrew-kf5)
+		cd $(brew --repo KDE-mac/kde)
 
 
 		if [ -z "${FORCE_BREW_QT}" ]
@@ -240,7 +240,7 @@ EOF
 			then
 				echo "Hacking kf5 Files"
 				sed -i '' "s@*args@\"-DCMAKE_PREFIX_PATH=${SUBSTITUTE}\", *args@g" *.rb
-				sed -i '' '/depends_on "qt5"/,/^/d' *.rb
+				sed -i '' '/depends_on "qt"/,/^/d' *.rb
 			else
 				echo "kf5 Files already hacked, er, patched, skipping"
 			fi
@@ -251,21 +251,18 @@ EOF
 		brew link --force gettext
 		mkdir -p /usr/local/lib/libexec
 	
-		announce "Homebrew currently has a problem building KWallet and KDocTools."
-		announce "Attempting the workaround for kf5-wallet.  If this doesn't work and kf5-wallet fails to install, install it manually and link it"
-			brew install --no-sandbox kf5-kwallet
-	
-		brewInstallIfNeeded haraldf/kf5/kf5-kcoreaddons
+		brewInstallIfNeeded KDE-mac/kde/kf5-kwallet
+		brewInstallIfNeeded KDE-mac/kde/kf5-kcoreaddons
 		brew link --overwrite kf5-kcoreaddons
-		brewInstallIfNeeded haraldf/kf5/kf5-kcrash
-		brewInstallIfNeeded haraldf/kf5/kf5-knotifyconfig
-		brewInstallIfNeeded haraldf/kf5/kf5-knotifications
-		brewInstallIfNeeded haraldf/kf5/kf5-kplotting
+		brewInstallIfNeeded KDE-mac/kde/kf5-kcrash
+		brewInstallIfNeeded KDE-mac/kde/kf5-knotifyconfig
+		brewInstallIfNeeded KDE-mac/kde/kf5-knotifications
+		brewInstallIfNeeded KDE-mac/kde/kf5-kplotting
 
-		brewInstallIfNeeded haraldf/kf5/kf5-kxmlgui
-		brewInstallIfNeeded haraldf/kf5/kf5-kdoctools
-		brewInstallIfNeeded haraldf/kf5/kf5-knewstuff
-		brewInstallIfNeeded haraldf/kf5/kf5-kded
+		brewInstallIfNeeded KDE-mac/kde/kf5-kxmlgui
+		brewInstallIfNeeded KDE-mac/kde/kf5-kdoctools
+		brewInstallIfNeeded KDE-mac/kde/kf5-knewstuff
+		brewInstallIfNeeded KDE-mac/kde/kf5-kded
 	
 		cd - > /dev/null
 	}
@@ -276,7 +273,10 @@ EOF
 	function installBrewDependencies
 	{
 		announce "updating homebrew"
-		#brew upgrade
+		brew upgrade
+		
+		announce "Installing xcode command line tools"
+		xcode-select --install
 
 		announce "Installing brew dependencies"
 
@@ -305,6 +305,7 @@ EOF
 		brewInstallIfNeeded xplanet
 		brewInstallIfNeeded gsl
 		brewInstallIfNeeded python
+		/usr/local/bin/pip2 install pyfits
 		brewInstallIfNeeded libftdi
 		brewInstallIfNeeded gpsd
 	
@@ -312,16 +313,18 @@ EOF
 		
 		#These are needed for Translations
 		brewInstallIfNeeded gpg
-		ln -s /usr/local/bin/gpg /usr/local/bin/gpg2
+		ln -sf /usr/local/bin/gpg /usr/local/bin/gpg2
 		brewInstallIfNeeded ruby
 
 		brewInstallIfNeeded jamiesmith/astronomy/libnova
 		brewInstallIfNeeded jamiesmith/astronomy/gsc
 		
-		announce "There is currently a problem building KDocTools."
-		announce "Attempting the workaround for k-doctools.  If this does not work, try the command: cpanm URI"
+		gem install logger-colors
+		
+		announce "Attempting to install cpan and URI for kdoctools."
 			brewInstallIfNeeded cpanminus
-			cpanm URI
+			cpanm --local-lib=~/perl5 local::lib && eval $(perl -I ~/perl5/lib/perl5/ -Mlocal::lib)
+			/usr/local/bin/cpanm URI
 	
 		# Only do this if we are doing a cmake build
 		#
@@ -411,6 +414,11 @@ EOF
 	{
 		mkdir -p ${CRAFT_DIR}
 		cd ${CRAFT_DIR}/
+		
+		if [ ! -d oxygen ]
+		then
+			git clone https://github.com/KDE/oxygen.git
+		fi
 	
 		if [ ! -d craft ]
 		then
@@ -443,6 +451,8 @@ EOF
 		craft breeze-icons
 		statusBanner "Crafting KStars"
 		craft -vvv -i kstars
+		
+		cp -f  ${CRAFT_DIR}/oxygen/sounds/*.ogg ${CRAFT_DIR}/share/sounds/
 	
 		announce "CRAFT COMPLETE"
 	}
@@ -474,7 +484,7 @@ EOF
 		then
 			cmake -DCMAKE_INSTALL_PREFIX=${KSTARS_XCODE_DIR} -G Xcode ../kstars
 			xcodebuild -target fetch-translations build
-			xcodebuild -project kstars.xcodeproj -target kstars -configuration Debug
+			xcodebuild -project kstars.xcodeproj -alltargets -configuration Debug
 			xcodebuild install
 		else
 			cmake -DCMAKE_INSTALL_PREFIX=${KSTARS_CMAKE_DIR} ../kstars
@@ -572,6 +582,17 @@ EOF
 		
 			#This is needed so we will be able to run the install_name_tool on them.
 			chmod +w ${targetDir}/bin/*
+			
+			mkdir -p ${KSTARS_APP}/Contents/MacOS/netpbm
+			cp -Rf $(brew --prefix netpbm)/bin ${KSTARS_APP}/Contents/MacOS/netpbm/
+			chmod +w ${KSTARS_APP}/Contents/MacOS/netpbm/bin/*
+			
+			mkdir -p ${KSTARS_APP}/Contents/MacOS/python/bin
+			cp -f $(brew --prefix python)/bin/python2 ${KSTARS_APP}/Contents/MacOS/python/bin/python
+			mkdir -p ${KSTARS_APP}/Contents/MacOS/python/bin/site-packages
+			cp -RLf /usr/local/lib/python2.7/site-packages/numpy ${KSTARS_APP}/Contents/MacOS/python/bin/site-packages/
+			cp -RLf /usr/local/lib/python2.7/site-packages/pyfits ${KSTARS_APP}/Contents/MacOS/python/bin/site-packages/
+			chmod -R +w ${KSTARS_APP}/Contents/MacOS/python
 		fi
 		##########################################
 		statusBanner "Set up some xplanet pictures..."
@@ -603,7 +624,10 @@ EOF
 		mkdir -p ${KSTARS_APP}/Contents/PlugIns/dbus
 		cp -f $(brew --prefix dbus)/share/dbus-1/session.conf ${KSTARS_APP}/Contents/PlugIns/dbus/kstars.conf
 		cp -f ${DIR}/org.freedesktop.dbus-kstars.plist ${KSTARS_APP}/Contents/PlugIns/dbus/
-	
+		
+		statusBanner "Copying phonon backend and vlc plugins"
+		tar -xzf ${DIR}/backend.zip -C ${KSTARS_APP}/Contents/PlugIns/
+		tar -xzf ${DIR}/vlc.zip -C ${KSTARS_APP}/Contents/PlugIns/
 	
 		if [ "$KSTARS_BUILD_TYPE" == "CRAFT" ]
 		then
@@ -615,13 +639,11 @@ EOF
 			statusBanner "Copying plugins"
 			cp -rf ${CRAFT_DIR}/lib/plugins/* ${KSTARS_APP}/Contents/PlugIns/
 			
-			statusBanner "Copying phonon backend, vlc plugins, and sounds."
-			cp -rf ${CRAFT_DIR}/lib/qt5/plugins/* ${KSTARS_APP}/Contents/PlugIns/
+			statusBanner "Copying Notifications."
+			cp -rf ${CRAFT_DIR}/share/knotifications5 ${KSTARS_APP}/Contents/Resources/
+			
+			statusBanner "Copying Sounds."
 			cp -rf ${CRAFT_DIR}/share/sounds ${KSTARS_APP}/Contents/Resources/
-			mkdir -p ${KSTARS_APP}/Contents/PlugIns/vlc
-			cp -rf /usr/local/lib/vlc/plugins/access ${KSTARS_APP}/Contents/PlugIns/vlc/
-			cp -rf /usr/local/lib/vlc/plugins/audio_output ${KSTARS_APP}/Contents/PlugIns/vlc/
-			cp -rf /usr/local/lib/vlc/plugins/codec ${KSTARS_APP}/Contents/PlugIns/vlc/
 		
 			#statusBanner "Copying icontheme"
 			#cp -f ${CRAFT_DIR}/share/icons/breeze/breeze-icons.rcc ${KSTARS_APP}/Contents/Resources/icontheme.rcc
@@ -636,6 +658,15 @@ EOF
 		
 			statusBanner "Copying plugins"
 			cp -rf /usr/local/lib/plugins/* ${KSTARS_APP}/Contents/PlugIns/
+			
+			statusBanner "Copying Frameworks for VLC/Phonon."
+			tar -xzf ${DIR}/FrameworksForVLC.zip -C ${KSTARS_APP}/Contents/
+			
+			statusBanner "Copying Notifications."
+			cp -rf ${KSTARS_CMAKE_DIR}/share/knotifications5 ${KSTARS_APP}/Contents/Resources/
+			
+			statusBanner "Copying Sounds."
+			cp -rf ${KSTARS_CMAKE_DIR}/share/sounds ${KSTARS_APP}/Contents/Resources/
 		
 		else
 			announce "Plugins and K I O Slave ERROR"
